@@ -24,7 +24,7 @@ def get_top_k_features(X, y, k=10):
         return [i for i in range(X.shape[1])]
     else:
         corrs = corr(X, y)
-        top_features = np.argsort(-corrs)
+        top_features = np.argsort(-np.abs(corrs))
         print("keeping only the top-{} features. Order was {}".format(k, top_features))
         return list(top_features[:k])
 
