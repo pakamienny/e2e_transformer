@@ -28,11 +28,12 @@ def get_top_k_features(X, y, k=10):
         print("keeping only the top-{} features. Order was {}".format(k, top_features))
         return list(top_features[:k])
 
-
 def exchange_node_values(tree, dico):
+    new_tree = copy.deepcopy(tree)
     for (old, new) in dico.items():
-        tree.replace_node_value(old, new)
-        
+        new_tree.replace_node_value(old, new)
+    return new_tree
+
 class SymbolicTransformerRegressor(BaseEstimator):
 
     def __init__(self,
@@ -119,7 +120,6 @@ class SymbolicTransformerRegressor(BaseEstimator):
                 else: 
                     refined_candidates[i]["predicted_tree"]=candidate["predicted_tree"]
             self.tree[input_id] = refined_candidates
-        self.exchanged_features = False
 
     @torch.no_grad()
     def evaluate_tree(self, tree, X, y, metric):
@@ -213,17 +213,13 @@ class SymbolicTransformerRegressor(BaseEstimator):
         return ["BFGS", "NoRef"]
 
     def exchange_tree_features(self):
-        if self.exchanged_features:
-            return
-        else:
-            top_k_features = self.top_k_features
-            for dataset_id, candidates in self.tree.items():
-                exchanges = {}
-                for i, feature in enumerate(top_k_features[dataset_id]):
-                    exchanges["x_{}".format(i)]="x_{}".format(feature)
-                for candidate in candidates:
-                    exchange_node_values(candidate["predicted_tree"], exchanges)
-            self.exchanged_features = True
+        top_k_features = self.top_k_features
+        for dataset_id, candidates in self.tree.items():
+            exchanges = {}
+            for i, feature in enumerate(top_k_features[dataset_id]):
+                exchanges["x_{}".format(i)]="x_{}".format(feature)
+            for candidate in candidates:
+                candidate["relabed_predicted_tree"] = exchange_node_values(candidate["predicted_tree"], exchanges)
 
     def retrieve_tree(self, refinement_type=None, tree_idx=0, with_infos=False):
         self.exchange_tree_features()
@@ -252,6 +248,8 @@ class SymbolicTransformerRegressor(BaseEstimator):
     def predict(self, X, refinement_type=None, tree_idx=0, batch=False):        
         if not isinstance(X, list):
             X = [X]
+        for i in range(len(X)):
+            X[i]=X[i][:,self.top_k_features[i]]
         res = []
         if batch:
             tree = self.retrieve_tree(refinement_type=refinement_type, tree_idx = -1)
