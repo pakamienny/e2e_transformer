@@ -7,6 +7,32 @@ from sklearn.base import BaseEstimator
 import symbolicregression.model.utils_wrapper as utils_wrapper
 import traceback
 
+
+def corr(X, y, epsilon=1e-10):
+    """
+    X : shape n*d
+    y : shape n
+    """
+    cov = (y @ X)/len(y) - y.mean()*X.mean(axis=0)
+    corr = cov / (epsilon + X.std(axis=0) * y.std())
+    return corr
+
+def get_top_k_features(X, y, k=10):
+    if y.ndim==2:
+        y=y[:,0]
+    if X.shape[1]<=k:
+        return [i for i in range(X.shape[1])]
+    else:
+        corrs = corr(X, y)
+        top_features = np.argsort(-corrs)
+        print("keeping only the top-{} features. Order was {}".format(k, top_features))
+        return list(top_features[:k])
+
+
+def exchange_node_values(tree, dico):
+    for (old, new) in dico.items():
+        tree.replace_node_value(old, new)
+        
 class SymbolicTransformerRegressor(BaseEstimator):
 
     def __init__(self,
@@ -93,6 +119,7 @@ class SymbolicTransformerRegressor(BaseEstimator):
                 else: 
                     refined_candidates[i]["predicted_tree"]=candidate["predicted_tree"]
             self.tree[input_id] = refined_candidates
+        self.exchanged_features = False
 
     @torch.no_grad()
     def evaluate_tree(self, tree, X, y, metric):
@@ -185,7 +212,22 @@ class SymbolicTransformerRegressor(BaseEstimator):
     def retrieve_refinements_types(self):
         return ["BFGS", "NoRef"]
 
+    def exchange_tree_features(self):
+        if self.exchanged_features:
+            return
+        else:
+            top_k_features = self.top_k_features
+            for dataset_id, candidates in self.tree.items():
+                exchanges = {}
+                for i, feature in enumerate(top_k_features[dataset_id]):
+                    exchanges["x_{}".format(i)]="x_{}".format(feature)
+                for candidate in candidates:
+                    exchange_node_values(candidate["predicted_tree"], exchanges)
+            self.exchanged_features = True
+
     def retrieve_tree(self, refinement_type=None, tree_idx=0, with_infos=False):
+        self.exchange_tree_features()
+
         if tree_idx == -1: idxs = [_ for _ in range(len(self.tree))] 
         else: idxs = [tree_idx]
         best_trees = []
