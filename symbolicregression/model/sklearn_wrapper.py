@@ -70,6 +70,11 @@ class SymbolicTransformerRegressor(BaseEstimator):
             Y = [Y]
         n_datasets = len(X)
 
+        self.top_k_features = [None for _ in range(n_datasets)]
+        for i in range(n_datasets):
+            self.top_k_features[i] = get_top_k_features(X[i], Y[i], k=self.model.env.params.max_input_dimension)
+            X[i] = X[i][:, self.top_k_features[i]]
+    
         scaler = utils_wrapper.StandardScaler() if self.rescale else None
         scale_params = {}
         if scaler is not None:
