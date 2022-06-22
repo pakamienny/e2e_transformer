@@ -4,6 +4,7 @@ import torch
 from collections import defaultdict
 from symbolicregression.metrics import compute_metrics
 from sklearn.base import BaseEstimator
+from sklearn import feature_selection 
 import symbolicregression.model.utils_wrapper as utils_wrapper
 import traceback
 
@@ -23,8 +24,11 @@ def get_top_k_features(X, y, k=10):
     if X.shape[1]<=k:
         return [i for i in range(X.shape[1])]
     else:
-        corrs = corr(X, y)
-        top_features = np.argsort(-np.abs(corrs))
+        kbest = feature_selection.SelectKBest(feature_selection.r_regression, k=k)
+        kbest.fit(X, y)
+        scores = kbest.scores_
+        #scores = corr(X, y)
+        top_features = np.argsort(-np.abs(scores))
         print("keeping only the top-{} features. Order was {}".format(k, top_features))
         return list(top_features[:k])
 
